@@ -1,3 +1,8 @@
+# Copied from KDE
+# http://websvn.kde.org/trunk/KDE/kdepimlibs/cmake/modules/FindGpgme.cmake
+# Added: include (MacroBoolTo01)
+# Removed: macro_log_feature() call
+
 # - Try to find the gpgme library
 #
 # Algorithm:
@@ -43,7 +48,7 @@ macro( macro_bool_to_bool FOUND_VAR )
 endmacro()
 
 include (MacroEnsureVersion)
-
+include (MacroBoolTo01)
 
 
 if ( WIN32 )
@@ -95,19 +100,11 @@ if ( WIN32 )
       ${CMAKE_INSTALL_PREFIX}/include
     )
 
-    if (NOT WINCE)
     find_library( _gpgme_vanilla_library NAMES gpgme libgpgme gpgme-11 libgpgme-11
       PATHS 
         ${CMAKE_LIBRARY_PATH}
         ${CMAKE_INSTALL_PREFIX}/lib
     )
-    else (NOT WINCE)
-      find_library( _gpgme_vanilla_library NAMES libgpgme-11-msc
-        PATHS 
-          ${CMAKE_LIBRARY_PATH}
-          ${CMAKE_INSTALL_PREFIX}/lib
-      )
-    endif (NOT WINCE)
 
     find_library( _gpgme_glib_library    NAMES gpgme-glib libgpgme-glib gpgme-glib-11 libgpgme-glib-11
       PATHS 
@@ -121,31 +118,27 @@ if ( WIN32 )
         ${CMAKE_INSTALL_PREFIX}/lib
     )
 
-    if ( WINCE )
-        set( _gpg_error_library )
-    else()
-        find_library( _gpg_error_library     NAMES gpg-error libgpg-error gpg-error-0 libgpg-error-0
-           PATHS 
-                ${CMAKE_LIBRARY_PATH}
-                ${CMAKE_INSTALL_PREFIX}/lib
-        )
-    endif()
+    find_library( _gpg_error_library     NAMES gpg-error libgpg-error gpg-error-0 libgpg-error-0
+      PATHS 
+        ${CMAKE_LIBRARY_PATH}
+        ${CMAKE_INSTALL_PREFIX}/lib
+    )
 
     set( GPGME_INCLUDES ${GPGME_INCLUDES} )
 
-    if ( _gpgme_vanilla_library AND ( _gpg_error_library OR WINCE ) )
+    if ( _gpgme_vanilla_library AND _gpg_error_library )
       set( GPGME_VANILLA_LIBRARIES ${_gpgme_vanilla_library} ${_gpg_error_library} )
       set( GPGME_VANILLA_FOUND     true )
       set( GPGME_FOUND             true )
     endif()
 
-    if ( _gpgme_glib_library AND ( _gpg_error_library OR WINCE ) )
+    if ( _gpgme_glib_library AND _gpg_error_library )
       set( GPGME_GLIB_LIBRARIES    ${_gpgme_glib_library}    ${_gpg_error_library} )
       set( GPGME_GLIB_FOUND        true )
       set( GPGME_FOUND             true )
     endif()
 
-    if ( _gpgme_qt_library AND ( _gpg_error_library OR WINCE ) )
+    if ( _gpgme_qt_library AND _gpg_error_library )
       set( GPGME_QT_LIBRARIES      ${_gpgme_qt_library}      ${_gpg_error_library} )
       set( GPGME_QT_FOUND          true )
       set( GPGME_FOUND             true )
@@ -205,7 +198,7 @@ else() # not WIN32
 
       exec_program( ${_GPGMECONFIG_EXECUTABLE} ARGS --version OUTPUT_VARIABLE GPGME_VERSION )
 
-      set( _GPGME_MIN_VERSION "1.1.7" )
+      set( _GPGME_MIN_VERSION "1.0.0" )
       macro_ensure_version( ${_GPGME_MIN_VERSION} ${GPGME_VERSION} _GPGME_INSTALLED_VERSION_OK )
 
       if ( NOT _GPGME_INSTALLED_VERSION_OK )
@@ -383,16 +376,6 @@ if ( NOT Gpgme_FIND_QUIETLY )
   else()
     set( _gpgme_homepage "http://www.gnupg.org/related_software/gpgme" )
   endif()
-
-  macro_log_feature(
-    GPGME_FOUND
-    "gpgme"
-    "GNU Privacy Guard (GPG/PGP) support"
-    ${_gpgme_homepage}
-    ${_req}
-    "${_GPGME_MIN_VERSION} or greater"
-    "Necessary to compile many PIM applications, including KMail"
-  )
 
 else()
 

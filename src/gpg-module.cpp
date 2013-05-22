@@ -26,6 +26,7 @@
 
 QoreStringNode *gpg_module_init();                                                                                
 void gpg_module_ns_init(QoreNamespace *rns, QoreNamespace *qns);                                                  
+void init_gpg_functions(QoreNamespace& ns);
 void gpg_module_delete();                                                                                         
 
 // qore module symbols                                                                                              

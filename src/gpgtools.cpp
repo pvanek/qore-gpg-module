@@ -1,10 +1,12 @@
 #include "gpgtools.h"
 
-bool qgpg_errcheck(gpgme_error_t err, ExceptionSink *xsink)
+
+bool qgpg_errcheck(gpgme_error_t err, const char * msg, ExceptionSink *xsink)
 {
-    if (res) {
-        xsink->raiseException("GPG-ERROR", "%s: %s", gpgme_strsource(err), gpgme_strerror(err));
-        retrun true;
+    if (err) {
+        xsink->raiseException("GPG-ERROR", "%s: %s: %s", msg, gpgme_strsource(err), gpgme_strerror(err));
+        return true;
     }
     return false;
 }
+

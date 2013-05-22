@@ -22,15 +22,22 @@
 */
 
 #include <qore/Qore.h>
+#include <gpgme.h>
 #include "gpgtools.h"
+
+
+#define QGPG_ASCII 1
+#define QGPG_BINARY 0
 
 
 /** @defgroup gpg_constants gpg Constants
 */
 //@{
 
-//! No flags
-const MAGIC_NONE              = 0x000000;
+//! Enforce ASCII armor
+const GPG_ASCII   = QGPG_ASCII;
+//! Use raw binary data
+const GPG_BINARY  = QGPG_BINARY;
 //@}
 
 
@@ -42,62 +49,119 @@ namespace Qore::GPG;
 //! TODO/FIXME
 /** 
  */
-binary gpg_encrypt(string input, list keys) [flags=RET_VALUE_ONLY] {
+binary gpg_encrypt(string input, list keys, int armor=QGPG_BINARY) [flags=RET_VALUE_ONLY] {
     gpgme_ctx_t ctx;
     gpgme_error_t err;
     gpgme_data_t in, out;
-    gpgme_key_t* key;
+    gpgme_key_t *recp = 0;
     gpgme_encrypt_result_t result;
 
-    // TODO/FIXME: localles? See init_gpgme in t-support.h of gpgme examples
+    gpgme_check_version(NULL);
+
+    // TODO/FIXME: locales? See init_gpgme in t-support.h of gpgme examples
     // TODO/FIXME: constant? OpenPGP/CMS/UNKNOWN
     err = gpgme_engine_check_version(GPGME_PROTOCOL_OpenPGP);
-    QGPG_ERRCHECK(err);
-      
-    err = gpgme_new (&ctx);
-    QGPG_ERRCHECK(err);
-    gpgme_set_armor (ctx, 1);
+    QGPG_ERRCHECK(err, "gpgme_engine_check_version");
+
+    err = gpgme_new(&ctx);
+    QGPG_ERRCHECK(err, "gpgme_new");
+
+    gpgme_set_armor(ctx, armor);
 
     // gpgme_data_t *dh, const char *buffer, size_t size, int copy
-    err = gpgme_data_new_from_mem (&in, input->getBuffer(), input->strlen(), 0);
-    QGPG_ERRCHECK(err);
+    err = gpgme_data_new_from_mem(&in, input->getBuffer(), input->strlen(), 0);
+    QGPG_ERRCHECK(err, "gpgme_data_new_from_mem");
   
-    err = gpgme_data_new (&out);
-    QGPG_ERRCHECK(err);
+    err = gpgme_data_new(&out);
+    QGPG_ERRCHECK(err, "gpgme_data_new");
     
-    key = malloc(keys->size() * sizeof(gpgme_key_t));
+    int keySize = keys->size();
+    recp = (gpgme_key_t*)malloc(keySize * sizeof(gpgme_key_t));
 
-    ListIterator i(keys);
+    ConstListIterator i(keys);
     while (i.next()) {
         QoreStringValueHelper str(i.getValue());
-        
-        err = gpgme_get_key (ctx, "A0FF4590BB6122EDEF6E3C542D727CC768697734",
-                             &key[i.index()], 0);
+        err = gpgme_get_key(ctx, str->getBuffer(), &recp[i.index()], 0);
+        // TODO/FIXME: better error handling - message
         // TODO/FIXME: cleanup on exit
-        QGPG_ERRCHECK(err);
+        QGPG_ERRCHECK(err, "gpgme_get_key");
     }
+    recp[keySize] = NULL;
+    
+    // TODO/FIXME: constants? GPGME_ENCRYPT_ALWAYS_TRUST, GPGME_ENCRYPT_NO_ENCRYPT_TO
+    assert(recp);
+    err = gpgme_op_encrypt(ctx, recp, GPGME_ENCRYPT_NO_ENCRYPT_TO, in, out);
+    QGPG_ERRCHECK(err, "gpgme_op_encrypt");
 
-    // TODO/FIXME: constants? GPGME_ENCRYPT_ALWAYS_TRUST
-    err = gpgme_op_encrypt (ctx, key, GPGME_ENCRYPT_ALWAYS_TRUST, in, out);
-    QGPG_ERRCHECK(err);
-
-    result = gpgme_op_encrypt_result (ctx);
+    result = gpgme_op_encrypt_result(ctx);
     if (result->invalid_recipients)
     {
         fprintf (stderr, "Invalid recipient encountered: %s\n",
                  result->invalid_recipients->fpr);
+        // TODO/FIXME: exception
         exit (1);
     }
-    print_data (out);
+    //print_data (out);
   
-    for (int i = 0; i < keys->size(); ++i)
-        gpgme_key_unref (key[i]);
-    free(key);
+    for (uint i = 0; i < keys->size(); ++i)
+        gpgme_key_unref(recp[i]);
+    free(recp);
 
-    gpgme_data_release (in);
-    gpgme_data_release (out);
-    gpgme_release (ctx);
-    return 0;
+    gpgme_data_release(in);
+
+    size_t dataSize;
+    char * data = gpgme_data_release_and_get_mem(out, &dataSize);
+
+    gpgme_release(ctx);
+    return new BinaryNode(data, dataSize);
+}
+
+
+//! TODO/FIXME
+/** 
+ */
+string gpg_decrypt(binary input, int armor=QGPG_BINARY) [flags=RET_VALUE_ONLY] {
+    gpgme_ctx_t ctx;
+    gpgme_error_t err;
+    gpgme_data_t in, out;
+
+    gpgme_check_version(NULL);
+
+    // TODO/FIXME: locales? See init_gpgme in t-support.h of gpgme examples
+    // TODO/FIXME: constant? OpenPGP/CMS/UNKNOWN
+    err = gpgme_engine_check_version(GPGME_PROTOCOL_OpenPGP);
+    QGPG_ERRCHECK(err, "gpgme_engine_check_version");
+
+    err = gpgme_new(&ctx);
+    QGPG_ERRCHECK(err, "gpgme_new");
+
+    gpgme_set_armor(ctx, armor);
+
+    err = gpgme_data_new_from_mem(&in, (const char*)input->getPtr(), input->size(), 0);
+    QGPG_ERRCHECK(err, "gpgme_data_new_from_mem");
+
+    err = gpgme_data_new(&out);
+    QGPG_ERRCHECK(err, "gpgme_data_new");
+
+    err = gpgme_op_decrypt(ctx, in, out);
+    QGPG_ERRCHECK(err, "gpgme_op_decrypt");
+
+    gpgme_decrypt_result_t result = gpgme_op_decrypt_result(ctx);
+    if (result->unsupported_algorithm)
+    {
+        fprintf (stderr, "%s:%i: unsupported algorithm: %s\n",
+                 __FILE__, __LINE__, result->unsupported_algorithm);
+        // TODO/FIXME: exception
+        exit (1);
+    }
+
+    size_t plainSize;
+    const char * plain = gpgme_data_release_and_get_mem(out, &plainSize);
+
+    gpgme_data_release(in);
+    gpgme_release(ctx);
+  
+    return new QoreStringNode(plain, plainSize);
 }
 
 //@}

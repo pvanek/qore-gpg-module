@@ -34,6 +34,12 @@ SET(QORE_MIN_VERSION "0.8.8")
 FIND_PACKAGE (Qore REQUIRED)
 
 find_package(Gpgme REQUIRED)
+#    - GPGME_{VANILLA,PTH,PTHREAD}_{FOUND,LIBRARIES} will be set for each of the above
+#    - GPGME_INCLUDES is the same for all of the above
+#    - GPGME_FOUND is set if any of the above was found
+message(STATUS "GPGME_FOUND: ${GPGME_FOUND}")
+message(STATUS "GPGME_INCLUDES: ${GPGME_INCLUDES}")
+
 
 FIND_PACKAGE (Doxygen)
 
@@ -56,10 +62,12 @@ add_definitions("-DPACKAGE_VERSION=\"${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION
 include_directories( ${QORE_INCLUDE_DIR} )
 include_directories( ${CMAKE_BINARY_DIR} )
 include_directories( ${CMAKE_SOURCE_DIR}/src )
-include_directories( ${LIBMAGIC_INCLUDE_DIR} )
+include_directories( ${GPGME_INCLUDES} )
+#include_directories( /usr/include ) # TODO/FIXME: GPGME_INCLUDES is empty...
 
 set(CPP_SRC
     src/gpg-module.cpp
+    src/gpgtools.cpp
 )
 
 set(QPP_SRC
@@ -72,21 +80,21 @@ SET (module_name "gpg")
 
 add_library(${module_name} SHARED ${CPP_SRC} ${QPP_SOURCES})
 set_target_properties(${module_name} PROPERTIES PREFIX "" SUFFIX "-api-${QORE_API_VERSION}.qmod")
-target_link_libraries(${module_name} ${QORE_LIBRARY} ${LIBMAGIC_LIBRARY} )
+target_link_libraries(${module_name} ${QORE_LIBRARY} ${GPGME_VANILLA_LIBRARIES} )
 install( TARGETS ${module_name} DESTINATION ${QORE_MODULES_DIR})
 
 
 
 # docs
-if (DOXYGEN_FOUND)
-    configure_file(${CMAKE_SOURCE_DIR}/docs/Doxyfile.in ${CMAKE_BINARY_DIR}/Doxyfile @ONLY)
-
-    add_custom_target(docs ALL
-        ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        COMMENT "Generating API documentation with Doxygen" VERBATIM
-    )
-endif (DOXYGEN_FOUND)
+#if (DOXYGEN_FOUND)
+#    configure_file(${CMAKE_SOURCE_DIR}/docs/Doxyfile.in ${CMAKE_BINARY_DIR}/Doxyfile @ONLY)
+#
+#    add_custom_target(docs ALL
+#        ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile
+#        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+#        COMMENT "Generating API documentation with Doxygen" VERBATIM
+#    )
+#endif (DOXYGEN_FOUND)
 
 
 # packaging related stuff
